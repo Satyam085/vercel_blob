@@ -86,6 +86,33 @@ export default function BlobManager() {
     localStorage.removeItem(STORAGE_KEY_NAME);
   };
 
+  // Generate and download JSON file with all file URLs
+  const downloadJson = () => {
+    if (!files.length) {
+      alert("No files available to export.");
+      return;
+    }
+
+    const jsonData: Record<string, string> = {};
+    files.forEach((file) => {
+      const slug = file.pathname.replace(/\//g, "_"); // turn path into single slug
+      const url =
+        file.url ??
+        `https://your-blob-store.vercel-storage.com/${file.pathname}`;
+      jsonData[slug] = url;
+    });
+
+    const blob = new Blob([JSON.stringify(jsonData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "files.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Delete one or multiple files
   const deleteItems = async (paths: string[]) => {
     if (!paths.length) return;
@@ -151,6 +178,14 @@ export default function BlobManager() {
               uploading={uploading}
               setUploading={setUploading}
             />
+            <div className="flex justify-end mb-4">
+              <button
+                onClick={downloadJson}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-sm"
+              >
+                Download JSON
+              </button>
+            </div>
             <FileList files={files} deleteItems={deleteItems} />
           </>
         )}
