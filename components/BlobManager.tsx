@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import FileList from "./FileList";
 import HowToUse from "./HowToUse";
 import TokenInput from "./TokenInput";
@@ -22,21 +22,49 @@ export default function BlobManager() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // Load storage key on mount
+  // Check localStorage and auto-connect if valid
   useEffect(() => {
     if (typeof window === "undefined") return;
     const item = localStorage.getItem(STORAGE_KEY_NAME);
     if (item) {
       try {
         const { key, expiresAt } = JSON.parse(item);
-        if (Date.now() < expiresAt) setStorageKey(key);
+        if (Date.now() < expiresAt) {
+          setStorageKey(key);
+          autoConnect(key);
+        } else {
+          localStorage.removeItem(STORAGE_KEY_NAME);
+        }
       } catch {
         localStorage.removeItem(STORAGE_KEY_NAME);
       }
     }
   }, []);
 
-  // Connect to storage
+  // Auto-connect function
+  const autoConnect = async (key: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/blob", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFiles(data.blobs || []);
+        setConnected(true);
+      } else {
+        localStorage.removeItem(STORAGE_KEY_NAME);
+        setStorageKey("");
+      }
+    } catch {
+      localStorage.removeItem(STORAGE_KEY_NAME);
+      setStorageKey("");
+    }
+    setLoading(false);
+  };
+
+  // Manual connect (when user enters token)
   const connectToStorage = async () => {
     if (!storageKey.trim()) return alert("Enter a valid token");
     setLoading(true);
@@ -49,31 +77,20 @@ export default function BlobManager() {
       }),
     );
 
-    try {
-      const res = await fetch("/api/blob", {
-        method: "GET",
-        headers: { Authorization: `Bearer ${storageKey}` },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setFiles(data.blobs || []);
-        setConnected(true);
-      } else {
-        const err = await res.json();
-        alert(`Connection failed: ${err.error || "Unknown error"}`);
-      }
-    } catch (err) {
-      console.error("Connect error:", err);
-      alert("Connection failed. Check your token.");
-    }
-    setLoading(false);
+    await autoConnect(storageKey);
   };
 
-  // Delete file
+  // Disconnect (clear token + state)
+  const disconnect = () => {
+    setConnected(false);
+    setFiles([]);
+    setStorageKey("");
+    localStorage.removeItem(STORAGE_KEY_NAME);
+  };
+
+  // Delete file (unchanged)
   const deleteFile = async (pathname: string) => {
     if (!confirm(`Delete ${pathname}?`)) return;
-
     try {
       const res = await fetch(`/api/blob/${encodeURIComponent(pathname)}`, {
         method: "DELETE",
@@ -108,6 +125,16 @@ export default function BlobManager() {
           />
         ) : (
           <>
+            <div className="flex items-center justify-between">
+              <span className="text-green-400">✅ Connected</span>
+              <button
+                onClick={disconnect}
+                className="text-sm px-3 py-1 bg-red-600 hover:bg-red-700 rounded"
+              >
+                Disconnect
+              </button>
+            </div>
+
             <UploadSection
               storageKey={storageKey}
               setFiles={setFiles}
@@ -115,17 +142,6 @@ export default function BlobManager() {
               setUploading={setUploading}
             />
             <FileList files={files} deleteFile={deleteFile} />
-            <button
-              onClick={() => {
-                setConnected(false);
-                setFiles([]);
-                setStorageKey("");
-                localStorage.removeItem(STORAGE_KEY_NAME);
-              }}
-              className="text-sm text-gray-400 hover:text-red-400"
-            >
-              Log out
-            </button>
           </>
         )}
 
