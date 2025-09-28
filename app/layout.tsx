@@ -30,11 +30,11 @@ export const metadata: Metadata = {
     title: "Vercel Blob Manager",
     description:
       "A modern Next.js app to manage Vercel Blob Storage: upload, preview, delete, and export file URLs.",
-    url: "https://your-deployment-url.vercel.app",
+    url: "https://vercel-blob-manager.vercel.app/",
     siteName: "Vercel Blob Manager",
     images: [
       {
-        url: "https://your-deployment-url.vercel.app/og-image.png",
+        url: "https://vercel-blob-manager.vercel.app/og-image.png",
         width: 1200,
         height: 630,
         alt: "Vercel Blob Manager",
@@ -48,7 +48,7 @@ export const metadata: Metadata = {
     title: "Vercel Blob Manager",
     description:
       "Manage your Vercel Blob Storage with ease using this Next.js app.",
-    images: ["https://your-deployment-url.vercel.app/og-image.png"],
+    images: ["https://vercel-blob-manager.vercel.app/og-image.png"],
     creator: "@satyam085",
   },
   icons: {

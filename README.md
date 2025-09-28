@@ -1,3 +1,4 @@
+# 🚀 [![Deployed on Vercel](https://vercel.com/button)](https://vercel-blob-manager.vercel.app/)
 A **Next.js App Router** project to connect with **Vercel Blob Storage**, upload files/folders, preview them, and manage your blobs with a modern UI.  
 
 ## ✨ Features  
