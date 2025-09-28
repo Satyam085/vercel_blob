@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+A **Next.js App Router** project to connect with **Vercel Blob Storage**, upload files/folders, preview them, and manage your blobs with a modern UI.  
 
-## Getting Started
+## ✨ Features  
 
-First, run the development server:
+- 🔑 Connect with your own **Vercel Blob Token** (kept only in your browser).  
+- 📂 **Folder-aware file explorer** (expand/collapse).  
+- 🖼 Inline **image thumbnails** + modal previews.  
+- 📄 **Text/Markdown previews** in a modal.  
+- 🔍 **Search & sort** by name, size, or upload date.  
+- 🗑 **Delete files or entire folders** (batch delete support).  
+- 📥 **Upload files or whole folders** (structure preserved).  
+- 📋 One-click **copy file URL**.  
+- 📑 **Export JSON** of all file URLs (`files.json`).  
+- 🌗 Dark UI with TailwindCSS.  
+
+---
+
+## 🚀 Getting Started  
+
+### 1. Clone the repo  
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/satyam085/vercel-blob.git
+cd vercel-blob
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install dependencies  
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm install
+# or
+npm install
+# or
+yarn install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Run dev server  
 
-## Learn More
+```bash
+pnpm dev
+# http://localhost:3000
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🔑 Usage  
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Get a **Vercel Blob Token** from your Vercel Dashboard.  
+   - Must be a **read/write token** (`blob_rw_xxxxx`).  
+2. Paste it in the UI and connect.  
+3. Upload, preview, download, or delete files/folders.  
+4. Export file URLs as `files.json`.  
 
-## Deploy on Vercel
+⚠️ **Note:**  
+- Tokens are **not stored on the server**.  
+- Your token is saved **only in localStorage** with a 7-day expiry.  
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📁 Project Structure  
+
+```
+app/
+ └── api/
+      ├── blob/
+      │    ├── route.ts          # List + upload
+      │    ├── delete/route.ts   # Batch & single delete
+      │    └── [...pathname]/route.ts # Get file info
+components/
+ ├── BlobManager.tsx  # Main UI container
+ ├── FileList.tsx     # Folder-aware explorer
+ ├── FileItem.tsx     # File row + previews
+ ├── PreviewModal.tsx # Modal for previews
+ ├── TokenInput.tsx   # Connect with token
+ ├── UploadSection.tsx# Upload files/folders
+ └── HowToUse.tsx     # Help instructions
+```
+
+---
+
+## 🛠️ Tech Stack  
+
+- [Next.js (App Router)](https://nextjs.org/)  
+- [Vercel Blob](https://vercel.com/docs/storage/vercel-blob)  
+- [TailwindCSS](https://tailwindcss.com/)  
+
+## ⚖️ License  
+
+MIT © 2025 [Satyam Singh](https://github.com/satyam085)  
