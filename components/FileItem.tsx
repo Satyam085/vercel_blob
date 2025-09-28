@@ -4,20 +4,13 @@ import { useState } from "react";
 import type { BlobFile } from "./BlobManager";
 import PreviewModal from "./PreviewModal";
 
-interface Props {
+export default function FileItem({
+  file,
+  deleteItems,
+}: {
   file: BlobFile;
-  deleteFile: (pathname: string) => void;
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / k ** i).toFixed(2)) + " " + sizes[i];
-}
-
-export default function FileItem({ file, deleteFile }: Props) {
+  deleteItems: (paths: string[]) => void;
+}) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [textContent, setTextContent] = useState<string | null>(null);
 
@@ -38,7 +31,6 @@ export default function FileItem({ file, deleteFile }: Props) {
     setPreviewOpen(true);
   };
 
-  // Decide inline thumbnail
   const inlineThumb = ["jpg", "jpeg", "png", "gif", "webp"].includes(
     ext || "",
   ) ? (
@@ -53,7 +45,6 @@ export default function FileItem({ file, deleteFile }: Props) {
     </div>
   );
 
-  // Modal preview content
   let previewContent: React.ReactNode = null;
   if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext || "")) {
     previewContent = (
@@ -86,8 +77,7 @@ export default function FileItem({ file, deleteFile }: Props) {
             {file.pathname.split("/").pop()}
           </div>
           <div className="text-xs text-gray-500">
-            {formatFileSize(file.size)} •{" "}
-            {new Date(file.uploadedAt).toLocaleDateString()}
+            {file.size} bytes • {new Date(file.uploadedAt).toLocaleDateString()}
           </div>
         </div>
       </div>
@@ -114,7 +104,7 @@ export default function FileItem({ file, deleteFile }: Props) {
           <Download size={14} />
         </button>
         <button
-          onClick={() => deleteFile(file.pathname)}
+          onClick={() => deleteItems([file.pathname])}
           className="p-1 text-gray-400 hover:text-red-400 rounded"
           title="Delete"
         >
@@ -122,7 +112,6 @@ export default function FileItem({ file, deleteFile }: Props) {
         </button>
       </div>
 
-      {/* Preview Modal */}
       <PreviewModal
         isOpen={previewOpen}
         onClose={() => setPreviewOpen(false)}

@@ -22,7 +22,7 @@ export default function BlobManager() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // Check localStorage and auto-connect if valid
+  // Check localStorage and auto-connect
   useEffect(() => {
     if (typeof window === "undefined") return;
     const item = localStorage.getItem(STORAGE_KEY_NAME);
@@ -49,9 +49,9 @@ export default function BlobManager() {
         method: "GET",
         headers: { Authorization: `Bearer ${key}` },
       });
-      if (res.ok) {
-        const data = await res.json();
-        setFiles(data.blobs || []);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setFiles(data.data || []);
         setConnected(true);
       } else {
         localStorage.removeItem(STORAGE_KEY_NAME);
@@ -64,11 +64,10 @@ export default function BlobManager() {
     setLoading(false);
   };
 
-  // Manual connect (when user enters token)
+  // Manual connect
   const connectToStorage = async () => {
     if (!storageKey.trim()) return alert("Enter a valid token");
     setLoading(true);
-
     localStorage.setItem(
       STORAGE_KEY_NAME,
       JSON.stringify({
@@ -76,11 +75,10 @@ export default function BlobManager() {
         expiresAt: Date.now() + STORAGE_KEY_EXPIRY,
       }),
     );
-
     await autoConnect(storageKey);
   };
 
-  // Disconnect (clear token + state)
+  // Disconnect
   const disconnect = () => {
     setConnected(false);
     setFiles([]);
@@ -88,22 +86,34 @@ export default function BlobManager() {
     localStorage.removeItem(STORAGE_KEY_NAME);
   };
 
-  // Delete file (unchanged)
-  const deleteFile = async (pathname: string) => {
-    if (!confirm(`Delete ${pathname}?`)) return;
+  // Delete one or multiple files
+  const deleteItems = async (paths: string[]) => {
+    if (!paths.length) return;
+    const msg =
+      paths.length === 1
+        ? `Delete file "${paths[0]}"?`
+        : `Delete folder with ${paths.length} files?`;
+
+    if (!confirm(msg)) return;
+
     try {
-      const res = await fetch(`/api/blob/${encodeURIComponent(pathname)}`, {
+      const res = await fetch("/api/blob/delete", {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${storageKey}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${storageKey}`,
+        },
+        body: JSON.stringify({ files: paths }),
       });
-      if (res.ok) {
-        setFiles((prev) => prev.filter((f) => f.pathname !== pathname));
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setFiles((prev) => prev.filter((f) => !paths.includes(f.pathname)));
       } else {
-        const err = await res.json();
-        alert(err.error || "Delete failed");
+        alert(`Delete failed: ${data.error}`);
       }
-    } catch (err) {
-      alert(`Delete error: ${(err as Error).message}`);
+    } catch (err: any) {
+      alert(`Delete error: ${err.message}`);
     }
   };
 
@@ -141,7 +151,7 @@ export default function BlobManager() {
               uploading={uploading}
               setUploading={setUploading}
             />
-            <FileList files={files} deleteFile={deleteFile} />
+            <FileList files={files} deleteItems={deleteItems} />
           </>
         )}
 
