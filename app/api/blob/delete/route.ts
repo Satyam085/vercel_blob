@@ -10,12 +10,12 @@ export async function DELETE(request: NextRequest) {
   if (!token) return errorResponse("Authorization token required", 401);
 
   try {
-    const { files } = await request.json();
-    if (!Array.isArray(files) || files.length === 0)
-      return errorResponse("No files provided");
+    const { urls } = await request.json();
+    if (!Array.isArray(urls) || urls.length === 0)
+      return errorResponse("No file URLs provided");
 
-    await Promise.all(files.map((p: string) => del(p, { token })));
-    return NextResponse.json({ success: true, deleted: files });
+    await del(urls, { token });
+    return NextResponse.json({ success: true, deleted: urls });
   } catch (err: any) {
     console.error("[Blob API][DELETE]", err);
     return errorResponse(err.message || "Failed to delete files", 500);

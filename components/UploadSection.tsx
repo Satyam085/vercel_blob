@@ -1,13 +1,16 @@
 "use client";
 import { Folder, Upload } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import type { BlobFile } from "./BlobManager";
+import { useToast } from "./Toast";
 
 interface Props {
   storageKey: string;
   setFiles: React.Dispatch<React.SetStateAction<BlobFile[]>>;
   uploading: boolean;
   setUploading: (v: boolean) => void;
+  uploadProgress: { done: number; total: number };
+  setUploadProgress: (v: { done: number; total: number }) => void;
 }
 
 export default function UploadSection({
@@ -15,30 +18,35 @@ export default function UploadSection({
   setFiles,
   uploading,
   setUploading,
+  uploadProgress,
+  setUploadProgress,
 }: Props) {
-  // File upload
-  const handleFileUpload = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>, folderMode = false) => {
-      const fileList = event.target.files;
-      if (!fileList || fileList.length === 0) return;
+  const [dragOver, setDragOver] = useState(false);
+  const { toast } = useToast();
 
-      const files = Array.from(fileList) as (File & {
-        webkitRelativePath?: string;
-      })[];
+  const uploadFiles = useCallback(
+    async (fileList: File[], folderMode = false) => {
+      if (fileList.length === 0) return;
+
       setUploading(true);
+      setUploadProgress({ done: 0, total: fileList.length });
 
       const uploaded: BlobFile[] = [];
-      let successCount = 0,
-        errorCount = 0;
+      let successCount = 0;
+      let errorCount = 0;
 
-      for (const file of files) {
+      for (const file of fileList) {
         try {
           const formData = new FormData();
           formData.append("file", file);
 
-          const path = folderMode
-            ? file.webkitRelativePath || file.name
-            : file.name;
+          const path =
+            folderMode &&
+            (file as File & { webkitRelativePath?: string })
+              .webkitRelativePath
+              ? (file as File & { webkitRelativePath?: string })
+                  .webkitRelativePath!
+              : file.name;
           formData.append("pathname", path);
 
           const res = await fetch("/api/blob", {
@@ -62,23 +70,60 @@ export default function UploadSection({
         } catch {
           errorCount++;
         }
+        setUploadProgress({ done: successCount + errorCount, total: fileList.length });
       }
 
       if (uploaded.length > 0) setFiles((prev) => [...prev, ...uploaded]);
       setUploading(false);
-      event.target.value = ""; // reset
 
       if (successCount && !errorCount)
-        alert(`✅ Uploaded ${successCount} file(s)!`);
+        toast(`Uploaded ${successCount} file(s)!`, "success");
       else if (successCount && errorCount)
-        alert(`⚠️ ${successCount} success, ${errorCount} failed.`);
-      else alert("❌ Upload failed.");
+        toast(`${successCount} uploaded, ${errorCount} failed.`, "error");
+      else toast("Upload failed.", "error");
     },
-    [storageKey, setFiles, setUploading],
+    [storageKey, setFiles, setUploading, setUploadProgress, toast],
   );
 
+  const handleFileInput = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>, folderMode = false) => {
+      const fileList = event.target.files;
+      if (!fileList || fileList.length === 0) return;
+      uploadFiles(Array.from(fileList), folderMode);
+      event.target.value = "";
+    },
+    [uploadFiles],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      if (droppedFiles.length > 0) uploadFiles(droppedFiles);
+    },
+    [uploadFiles],
+  );
+
+  const pct =
+    uploadProgress.total > 0
+      ? Math.round((uploadProgress.done / uploadProgress.total) * 100)
+      : 0;
+
   return (
-    <div className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center">
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+      className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+        dragOver
+          ? "border-indigo-400 bg-indigo-900/20"
+          : "border-gray-700 hover:border-gray-600"
+      }`}
+    >
       <div className="flex justify-center gap-4 mb-4">
         <label className="cursor-pointer bg-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2">
           <Folder size={16} /> Upload Folder
@@ -87,7 +132,7 @@ export default function UploadSection({
             multiple
             // @ts-expect-error
             webkitdirectory=""
-            onChange={(e) => handleFileUpload(e, true)}
+            onChange={(e) => handleFileInput(e, true)}
             className="hidden"
             disabled={uploading}
           />
@@ -97,19 +142,31 @@ export default function UploadSection({
           <input
             type="file"
             multiple
-            onChange={(e) => handleFileUpload(e, false)}
+            onChange={(e) => handleFileInput(e, false)}
             className="hidden"
             disabled={uploading}
           />
         </label>
       </div>
       <p className="text-sm text-gray-400">
-        Upload folders (structure preserved) or select individual files.
+        {dragOver
+          ? "Drop files here to upload"
+          : "Drag & drop files here, or use the buttons above"}
       </p>
       {uploading && (
-        <div className="mt-4 flex items-center justify-center gap-2 text-indigo-400">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-400" />
-          <span>Uploading...</span>
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center justify-center gap-2 text-indigo-400 text-sm">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-400" />
+            <span>
+              Uploading {uploadProgress.done}/{uploadProgress.total} files...
+            </span>
+          </div>
+          <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+            <div
+              className="bg-indigo-500 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
         </div>
       )}
     </div>

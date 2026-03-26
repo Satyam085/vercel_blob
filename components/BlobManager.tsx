@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useConfirm } from "./ConfirmModal";
 import FileList from "./FileList";
 import HowToUse from "./HowToUse";
+import { useToast } from "./Toast";
 import TokenInput from "./TokenInput";
 import UploadSection from "./UploadSection";
 
@@ -21,8 +23,12 @@ export default function BlobManager() {
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Check localStorage and auto-connect
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const item = localStorage.getItem(STORAGE_KEY_NAME);
@@ -41,7 +47,6 @@ export default function BlobManager() {
     }
   }, []);
 
-  // Auto-connect function
   const autoConnect = async (key: string) => {
     setLoading(true);
     try {
@@ -56,17 +61,21 @@ export default function BlobManager() {
       } else {
         localStorage.removeItem(STORAGE_KEY_NAME);
         setStorageKey("");
+        toast("Failed to connect. Check your token.", "error");
       }
     } catch {
       localStorage.removeItem(STORAGE_KEY_NAME);
       setStorageKey("");
+      toast("Connection error. Try again.", "error");
     }
     setLoading(false);
   };
 
-  // Manual connect
   const connectToStorage = async () => {
-    if (!storageKey.trim()) return alert("Enter a valid token");
+    if (!storageKey.trim()) {
+      toast("Enter a valid token", "error");
+      return;
+    }
     setLoading(true);
     localStorage.setItem(
       STORAGE_KEY_NAME,
@@ -78,29 +87,29 @@ export default function BlobManager() {
     await autoConnect(storageKey);
   };
 
-  // Disconnect
   const disconnect = () => {
     setConnected(false);
     setFiles([]);
     setStorageKey("");
+    setSelected(new Set());
     localStorage.removeItem(STORAGE_KEY_NAME);
+    toast("Disconnected", "info");
   };
 
-  // Generate and download JSON file with all file URLs
   const downloadJson = () => {
     if (!files.length) {
-      alert("No files available to export.");
+      toast("No files available to export.", "error");
       return;
     }
 
     const jsonData: Record<string, string> = {};
-    files.forEach((file) => {
-      const slug = file.pathname.replace(/\//g, "_"); // turn path into single slug
+    for (const file of files) {
+      const slug = file.pathname.replace(/\//g, "_");
       const url =
         file.url ??
         `https://your-blob-store.vercel-storage.com/${file.pathname}`;
       jsonData[slug] = url;
-    });
+    }
 
     const blob = new Blob([JSON.stringify(jsonData, null, 2)], {
       type: "application/json",
@@ -111,17 +120,27 @@ export default function BlobManager() {
     link.download = "files.json";
     link.click();
     URL.revokeObjectURL(url);
+    toast("JSON downloaded!", "success");
   };
 
-  // Delete one or multiple files
   const deleteItems = async (paths: string[]) => {
     if (!paths.length) return;
     const msg =
       paths.length === 1
-        ? `Delete file "${paths[0]}"?`
-        : `Delete folder with ${paths.length} files?`;
+        ? `This will permanently delete "${paths[0]}".`
+        : `This will permanently delete ${paths.length} files.`;
 
-    if (!confirm(msg)) return;
+    const ok = await confirm({ title: "Delete files?", message: msg });
+    if (!ok) return;
+
+    const urls = files
+      .filter((f) => paths.includes(f.pathname) && f.url)
+      .map((f) => f.url as string);
+
+    if (urls.length === 0) {
+      toast("No valid URLs found for the selected files.", "error");
+      return;
+    }
 
     try {
       const res = await fetch("/api/blob/delete", {
@@ -130,18 +149,45 @@ export default function BlobManager() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${storageKey}`,
         },
-        body: JSON.stringify({ files: paths }),
+        body: JSON.stringify({ urls }),
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
         setFiles((prev) => prev.filter((f) => !paths.includes(f.pathname)));
+        setSelected((prev) => {
+          const next = new Set(prev);
+          for (const p of paths) next.delete(p);
+          return next;
+        });
+        toast(`Deleted ${paths.length} file(s)`, "success");
       } else {
-        alert(`Delete failed: ${data.error}`);
+        toast(`Delete failed: ${data.error}`, "error");
       }
     } catch (err: any) {
-      alert(`Delete error: ${err.message}`);
+      toast(`Delete error: ${err.message}`, "error");
     }
+  };
+
+  const toggleSelect = (pathname: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(pathname)) next.delete(pathname);
+      else next.add(pathname);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === files.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(files.map((f) => f.pathname)));
+    }
+  };
+
+  const deleteSelected = () => {
+    deleteItems(Array.from(selected));
   };
 
   return (
@@ -163,7 +209,7 @@ export default function BlobManager() {
         ) : (
           <>
             <div className="flex items-center justify-between">
-              <span className="text-green-400">✅ Connected</span>
+              <span className="text-green-400 font-medium">Connected</span>
               <button
                 onClick={disconnect}
                 className="text-sm px-3 py-1 bg-red-600 hover:bg-red-700 rounded"
@@ -177,8 +223,21 @@ export default function BlobManager() {
               setFiles={setFiles}
               uploading={uploading}
               setUploading={setUploading}
+              uploadProgress={uploadProgress}
+              setUploadProgress={setUploadProgress}
             />
-            <div className="flex justify-end mb-4">
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {selected.size > 0 && (
+                  <button
+                    onClick={deleteSelected}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-white text-sm"
+                  >
+                    Delete {selected.size} selected
+                  </button>
+                )}
+              </div>
               <button
                 onClick={downloadJson}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-sm"
@@ -186,7 +245,14 @@ export default function BlobManager() {
                 Download JSON
               </button>
             </div>
-            <FileList files={files} deleteItems={deleteItems} />
+
+            <FileList
+              files={files}
+              deleteItems={deleteItems}
+              selected={selected}
+              toggleSelect={toggleSelect}
+              toggleSelectAll={toggleSelectAll}
+            />
           </>
         )}
 

@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     const blob = await put(pathname, file, { access: "public", token });
     return NextResponse.json({
       success: true,
-      data: { ...blob, url: blob.url },
+      blob: { pathname: blob.pathname, size: file.size, uploadedAt: new Date().toISOString(), url: blob.url },
     });
   } catch (err: any) {
     console.error("[Blob API][UPLOAD]", err);

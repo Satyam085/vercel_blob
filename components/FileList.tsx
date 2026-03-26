@@ -5,31 +5,32 @@ import type { BlobFile } from "./BlobManager";
 import FileItem from "./FileItem";
 
 function buildTree(files: BlobFile[]) {
-  const root: any = {};
-  files.forEach((file) => {
+  const root: Record<string, any> = {};
+  for (const file of files) {
     const parts = file.pathname.split("/");
     let current = root;
-    parts.forEach((part, idx) => {
+    for (let idx = 0; idx < parts.length; idx++) {
+      const part = parts[idx];
       if (idx === parts.length - 1) {
         current[part] = file;
       } else {
         if (!current[part]) current[part] = {};
         current = current[part];
       }
-    });
-  });
+    }
+  }
   return root;
 }
 
-function collectFiles(node: any): string[] {
-  let paths: string[] = [];
-  Object.values(node).forEach((value: any) => {
-    if (typeof value === "object" && "pathname" in value) {
+function collectFiles(node: Record<string, any>): string[] {
+  const paths: string[] = [];
+  for (const value of Object.values(node)) {
+    if (typeof value === "object" && value !== null && "pathname" in value) {
       paths.push(value.pathname);
-    } else {
-      paths = paths.concat(collectFiles(value));
+    } else if (typeof value === "object" && value !== null) {
+      paths.push(...collectFiles(value));
     }
-  });
+  }
   return paths;
 }
 
@@ -39,14 +40,18 @@ function FolderNode({
   deleteItems,
   searchQuery,
   sortKey,
+  selected,
+  toggleSelect,
 }: {
   name: string;
-  children: any;
+  children: Record<string, any>;
   deleteItems: (paths: string[]) => void;
   searchQuery: string;
   sortKey: "name" | "size" | "date";
+  selected: Set<string>;
+  toggleSelect: (pathname: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
 
   const handleDeleteFolder = () => {
     const allFiles = collectFiles(children);
@@ -55,8 +60,10 @@ function FolderNode({
 
   const sortedEntries = Object.entries(children).sort(
     ([aKey, aVal], [bKey, bVal]) => {
-      const aIsFile = typeof aVal === "object" && "pathname" in aVal;
-      const bIsFile = typeof bVal === "object" && "pathname" in bVal;
+      const aIsFile =
+        typeof aVal === "object" && aVal !== null && "pathname" in aVal;
+      const bIsFile =
+        typeof bVal === "object" && bVal !== null && "pathname" in bVal;
 
       if (aIsFile && bIsFile) {
         const aFile = aVal as BlobFile;
@@ -75,30 +82,39 @@ function FolderNode({
   );
 
   return (
-    <div className="ml-4">
-      <div className="flex items-center justify-between hover:bg-gray-700 rounded px-2 py-1">
+    <div className="ml-2">
+      <div className="flex items-center justify-between hover:bg-gray-700/50 rounded px-2 py-1.5">
         <button
           className="flex items-center gap-2 text-gray-300 hover:text-indigo-400"
           onClick={() => setOpen(!open)}
         >
-          {open ? <FolderOpen size={22} /> : <Folder size={22} />}
-          <span className="font-medium">{name}</span>
+          {open ? (
+            <FolderOpen size={18} className="text-indigo-400" />
+          ) : (
+            <Folder size={18} className="text-gray-400" />
+          )}
+          <span className="font-medium text-sm">{name}</span>
         </button>
         <button
           onClick={handleDeleteFolder}
-          className="p-1 text-gray-400 hover:text-red-400 rounded"
+          className="p-1 text-gray-500 hover:text-red-400 rounded opacity-0 group-hover:opacity-100"
           title="Delete folder"
         >
-          <Trash2 size={16} />
+          <Trash2 size={14} />
         </button>
       </div>
 
       {open && (
-        <div className="ml-4 border-l border-gray-700 pl-2">
+        <div className="ml-4 border-l border-gray-700/50 pl-1">
           {sortedEntries.map(([key, value]) => {
-            if (typeof value === "object" && "pathname" in value) {
+            if (
+              typeof value === "object" &&
+              value !== null &&
+              "pathname" in value
+            ) {
               const file = value as BlobFile;
               if (
+                searchQuery &&
                 !file.pathname.toLowerCase().includes(searchQuery.toLowerCase())
               )
                 return null;
@@ -107,20 +123,23 @@ function FolderNode({
                   key={file.pathname}
                   file={file}
                   deleteItems={deleteItems}
-                />
-              );
-            } else {
-              return (
-                <FolderNode
-                  key={key}
-                  name={key}
-                  children={value}
-                  deleteItems={deleteItems}
-                  searchQuery={searchQuery}
-                  sortKey={sortKey}
+                  isSelected={selected.has(file.pathname)}
+                  toggleSelect={toggleSelect}
                 />
               );
             }
+            return (
+              <FolderNode
+                key={key}
+                name={key}
+                children={value as Record<string, any>}
+                deleteItems={deleteItems}
+                searchQuery={searchQuery}
+                sortKey={sortKey}
+                selected={selected}
+                toggleSelect={toggleSelect}
+              />
+            );
           })}
         </div>
       )}
@@ -131,9 +150,15 @@ function FolderNode({
 export default function FileList({
   files,
   deleteItems,
+  selected,
+  toggleSelect,
+  toggleSelectAll,
 }: {
   files: BlobFile[];
   deleteItems: (paths: string[]) => void;
+  selected: Set<string>;
+  toggleSelect: (pathname: string) => void;
+  toggleSelectAll: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<"name" | "size" | "date">("name");
@@ -141,9 +166,22 @@ export default function FileList({
 
   return (
     <div>
-      <h2 className="text-xl font-semibold text-gray-100 mb-4">
-        Files ({files.length})
-      </h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold text-gray-100">
+          Files ({files.length})
+        </h2>
+        {files.length > 0 && (
+          <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={selected.size === files.length && files.length > 0}
+              onChange={toggleSelectAll}
+              className="accent-indigo-500 w-4 h-4 cursor-pointer"
+            />
+            Select all
+          </label>
+        )}
+      </div>
 
       <div className="flex items-center gap-4 mb-4">
         <div className="relative flex-1">
@@ -152,7 +190,7 @@ export default function FileList({
             placeholder="Search files..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 pl-9"
+            className="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 pl-9 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
           />
           <Search size={16} className="absolute left-3 top-3 text-gray-500" />
         </div>
@@ -167,29 +205,38 @@ export default function FileList({
         </select>
       </div>
 
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+      <div className="bg-gray-800 border border-gray-700 rounded-lg p-2">
         {files.length === 0 ? (
-          <p className="text-gray-500 text-center">No files uploaded yet.</p>
+          <p className="text-gray-500 text-center py-8">
+            No files uploaded yet.
+          </p>
         ) : (
           Object.entries(tree).map(([key, value]) =>
-            typeof value === "object" && "pathname" in value ? (
-              (value as BlobFile).pathname
-                .toLowerCase()
-                .includes(searchQuery.toLowerCase()) && (
+            typeof value === "object" &&
+            value !== null &&
+            "pathname" in value ? (
+              (!searchQuery ||
+                (value as BlobFile).pathname
+                  .toLowerCase()
+                  .includes(searchQuery.toLowerCase())) && (
                 <FileItem
                   key={(value as BlobFile).pathname}
                   file={value as BlobFile}
                   deleteItems={deleteItems}
+                  isSelected={selected.has((value as BlobFile).pathname)}
+                  toggleSelect={toggleSelect}
                 />
               )
             ) : (
               <FolderNode
                 key={key}
                 name={key}
-                children={value}
+                children={value as Record<string, any>}
                 deleteItems={deleteItems}
                 searchQuery={searchQuery}
                 sortKey={sortKey}
+                selected={selected}
+                toggleSelect={toggleSelect}
               />
             ),
           )
